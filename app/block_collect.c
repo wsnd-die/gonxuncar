@@ -56,7 +56,7 @@
  *    重新示教时表里的值也应当是递减的。 */
 static const float COLLECT_TRIGGER_X[] = {
     0.0f,
-    1.731493f,
+    1.751493f,
     1.604586f,
     1.228177f,
     0.795644f,
@@ -383,7 +383,11 @@ static void collect_slots(void)
             printf("[COLLECT] no cone, abort\r\n");
         }
         for (uint8_t id = SERVO_ID_SCS0009_MIN; id <= SERVO_ID_SCS0009_MAX; id++) {
-            servo_set_pos(id, SCS_OPEN);
+            for (uint8_t i=0;i<=5;i++)
+            {
+                servo_set_pos(id, SCS_OPEN);
+                osDelay(1);
+            }
         }
         (void)BlockBasic_TurntableTo(BLOCK_FIRST_SLOT);
 
@@ -403,7 +407,15 @@ static void collect_slots(void)
                 (void)BlockBasic_TurntableTo((uint8_t)(slot + 1u));
             } else {
                 Servo_Angle(BLOCK_CLOSE_DOOR);
-                (void)BlockBasic_GripperClamp(CONE_SLOT);
+                // (void)BlockBasic_GripperClamp(CONE_SLOT);
+                for (uint8_t id = SERVO_ID_SCS0009_MIN; id <= SERVO_ID_SCS0009_MAX; id++) {
+                    for (uint8_t k=0;k<=5;k++)
+                    {
+                        servo_set_pos(id, SCS_CLOSE);
+                        osDelay(1);
+                    }
+
+                }
             }
         }
 
@@ -433,7 +445,7 @@ static void collect_slots(void)
                        (unsigned)slot, (unsigned)NX_GetTrophyCount());
             }
 
-            osDelay(40);
+            osDelay(190);
             if (slot < TROPHY_LAST_SLOT) {
                 (void)BlockBasic_TurntableTo((uint8_t)(slot + 1u));
             } else {
@@ -446,9 +458,9 @@ static void collect_slots(void)
         trophy_fill_missing();
         NX_RequestMode(NX_MODE_CIRCLE);
         NX_ApplyMode();
-        BlockBasic_LiftToAbs(32.0f);   /* 奖杯收完抬到 28mm (等价原 UP,25: 3+25) */
+        BlockBasic_LiftToAbs(31.5f);   /* 奖杯收完抬到 28mm (等价原 UP,25: 3+25) */
 
-        BlockBasic_LiftToAbs(31.0f);   /* 奖杯收完抬到 28mm (等价原 UP,25: 3+25) */
+        // BlockBasic_LiftToAbs(31.0f);   /* 奖杯收完抬到 28mm (等价原 UP,25: 3+25) */
     }
 }
 
@@ -505,3 +517,5 @@ void servo_set_pos(uint8_t id, uint16_t pos)
         (void)SCS_WritePos(id, pos, SCS_TIME, SCS_SPEED);
     }
 }
+
+

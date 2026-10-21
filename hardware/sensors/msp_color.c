@@ -253,7 +253,7 @@ bool MSP_Color_DebugPoll(void)
         buf[i] = (char)s_msp.digits[i];
     }
     buf[n] = '\0';
-    // printf("[MSP-RX] color='%c' rgb_raw=\"%s\"\r\n", (char)s_msp.color, buf);
+    printf("[MSP-RX] color='%c' rgb_raw=\"%s\"\r\n", (char)s_msp.color, buf);
     (void)buf;
     return true;
 }

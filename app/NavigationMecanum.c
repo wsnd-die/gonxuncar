@@ -24,14 +24,14 @@ World_Dir_t Self_Dir = {0.0f, 0.0f, 0.0f};
 
 World_Dir_t g_waypoints[NAV_WAYPOINT_MAX] = {
     {   0.502536f,-1.081990f,-1.089054f }, /*  1 奖杯点 */
-    {   0.748793f,-1.303468f,-0.455103f }, /*  2 奖杯点 */
-    {   1.135373f,-1.413104f, 0.125007f }, /*  3 奖杯点 */
+    {   0.708793f,-1.323468f,-0.405103f }, /*  2 奖杯点 */
+    {   1.135373f,-1.413104f, 0.065007f }, /*  3 奖杯点 */
 
-    {   1.733253f,-0.222191f, 0.0f }, /*  4 亚军点 */
-    {   1.729634f, 0.075066f, 0.0f }, /*  5 冠军点 */
+    {   1.726253f,-0.292191f, 0.0f }, /*  4 亚军点 */
+    {   1.729634f, 0.070066f, 0.0f }, /*  5 冠军点 */
     {   1.713531f, 0.323497f, 0.0f}, /*  6 季军点 */
 
-    {   1.9902776f, 0.464762f, 1.520430f},/*圆弧起点*/
+    {   1.9902776f, 0.464762f, 1.500430f},/*圆弧起点*/
     //{   1.801493f, 0.768879f, 1.459011f }, /*  7 e 点 */
     // {   1.674586f, 1.154120f, 2.231404f }, /*  8 d 点 */
     // {   1.308177f, 1.418482f, 2.770012f }, /*  9 c 点 */
@@ -41,7 +41,7 @@ World_Dir_t g_waypoints[NAV_WAYPOINT_MAX] = {
     {   1.076288f,-0.395111f,-1.545575f }, /* 12 摆放e 点 */
     // {   0.946693f, 0.100097f,-1.499596f }, /* 13 摆放d 点 */
     {   0.930956f, 0.113929f,-0.673924f }, /* 14 摆放c 点 */
-    {   0.936404f, 0.415504f, 0.818769f }, /* 15 摆放a 点 */
+    {   0.946404f, 0.425504f, 0.818769f }, /* 15 摆放a 点 */
     // {   0.660611f, 0.167082f, 0.855780f }, /* 16 摆放b 点 */
 
 
@@ -473,8 +473,8 @@ bool Nav_FeDuanPoint(void)
     }
     if (s_idx == (uint8_t)NAV_SLOW_WP_IDX2)
     {
-        s_near_lim_x = 0.35f;
-        s_near_lim_y = 0.35f;
+        s_near_lim_x = 0.45f;
+        s_near_lim_y = 0.45f;
     }
     else {
         s_near_lim_x = NAV_CREEP_X_V;
@@ -539,7 +539,7 @@ void Nav_Cricle(Nav_Cricle_t Cricle_t, float Radius, float Angle)
         printf("[NAV-ARC] 参数非法 R=%.3f A=%.3f, 不动作\r\n", R, sweep);
         return;
     }
-    BlockBasic_LiftToAbs(0);
+    BlockBasic_LiftToAbs(2);
     /* 1. 借走电机控制权 (与 Nav_GoToWorld 同契约, 退出不恢复角度环) */
     g_angle_ctrl_enable = 0;
     osDelay(10);
@@ -651,5 +651,133 @@ void Nav_Cricle(Nav_Cricle_t Cricle_t, float Radius, float Angle)
 }
 
 
+
+#define SHORT_VMAX         0.3f    /* 短距平移速度上限 m/s */
+#define SHORT_VX           1.9f
+#define SHORT_VY           2.3f
+#define SHORT_KD_X         1.0f    /* 平移 D: 每拍误差变化量增益 (★初值, 待实测) */
+#define SHORT_KD_Y         1.0f    /* 平移 D: 每拍误差变化量增益 */
+#define SHORT_TOL_XY       0.005f   /* 到达容差 1cm */
+#define SHORT_TOL_YAW      0.05f   /* 到达容差 ~2.9° */
+#define SHORT_ARRIVE_V     0.1f    /* 到达时指令速度须已衰减到 m/s */
+#define SHORT_ARRIVE_TICKS 4u      /* 连续 N 拍判到达 */
+#define SHORT_TIMEOUT_MS   3000u   /* 短距超时 ms */
+
+void NAV_SHORT_WORD(float x, float y, float yaw)
+{
+
+    osDelay(10);
+
+    /* 车体量 → 固定世界目标: 以入口时的 OPS9 位姿为基准 */
+    PoseData_t pose;
+    locator_ops9.get_pose(&pose);
+    if (!pose.valid)
+    {
+        printf("[SHORT] 起点 OPS9 无效, 不动作\r\n");
+        return;
+    }
+    float c0 = cosf(pose.yaw), s0 = sinf(pose.yaw);
+    float tx   = pose.x + (x * c0 - y * s0);
+    float ty   = pose.y + (x * s0 + y * c0);
+    float tyaw = NAV_WrapPi(pose.yaw + yaw);
+
+    float vx_cmd = 0.0f, vy_cmd = 0.0f;
+    float last_ex = 0.0f, last_ey = 0.0f;
+    uint8_t  exy_armed = 0u;        /* 第一拍没有"上一拍误差", D 项先不参与 */
+    uint8_t  arrive   = 0u;
+    uint8_t  invalid  = 0u;
+    uint8_t  heading_armed = 0u;
+    uint32_t t0 = osKernelGetTickCount();
+    s_nav_aborted = false;
+    g_nav_running = 1u;
+
+    for (;;)
+    {
+        locator_ops9.get_pose(&pose);   /* 只读, ops9imu 任务在喂 */
+
+        /* 出口一: IR 进料打断 (语义与 Nav_GoToWorld 相同) */
+        if (g_route_abort)
+        {
+            g_route_abort = 0u;
+            s_nav_aborted = true;
+            break;
+        }
+
+        if (!pose.valid)
+        {
+            if (++invalid > NAV_MAX_INVALID_TICKS)
+            {
+                vx_cmd = 0.0f; vy_cmd = 0.0f;
+                NAV_Stop();
+            }
+            osDelay(NAV_LOOP_TICKS);
+            continue;
+        }
+        invalid = 0u;
+
+        float ex   = tx - pose.x;
+        float ey   = ty - pose.y;
+        float eyaw = NAV_WrapPi(tyaw - pose.yaw);
+
+        /* 航向: 与 Nav_GoToWorld 同一套开关 */
+// #if NAV_YAW_CASCADE
+//         if (!heading_armed) {
+//             Angle_Enable(tyaw);         /* 起点由 angle_ctrl 自己读 OPS9, 无跳变 */
+//             heading_armed = 1u;
+//         }
+//         Angle_Step();
+//         float w_w = Angle_GetW();
+// #else
+        float eyaw_dz = (fabsf(eyaw) < NAV_YAW_DEADBAND) ? 0.0f : eyaw;
+        float wz      = (fabsf(pose.wz) < NAV_W_DEADBAND) ? 0.0f : pose.wz;
+        float w_w = NAV_KP_YAW * eyaw_dz - NAV_KD_YAW * wz;
+        w_w = NAV_Clamp(w_w, -NAV_VMAX_W, NAV_VMAX_W);
+// #endif
+
+        /* 平移 PD: P 对位置误差, D 对每拍误差变化量。
+         * dex = ex - last_ex ≈ -v·dt → 逼近目标时 dex<0, D 项减指令 = 阻尼。
+         * (与 Nav_GoToWorld 把 ex_x 传进 NAV_AxisRef 同量纲, 但 D 的符号
+         *  语义是"逼近减速", 不是它那种近似可忽略的小正反馈。) */
+        float dex = exy_armed ? (ex - last_ex) : 0.0f;
+        float dey = exy_armed ? (ey - last_ey) : 0.0f;
+        last_ex = ex; last_ey = ey;
+        exy_armed = 1u;
+
+        float vx_ref = NAV_Clamp(SHORT_VX * ex + SHORT_KD_X * dex, -SHORT_VMAX, SHORT_VMAX);
+        float vy_ref = NAV_Clamp(SHORT_VY * ey + SHORT_KD_Y * dey, -SHORT_VMAX, SHORT_VMAX);
+        vx_cmd = NAV_Ramp(vx_cmd, vx_ref, NAV_ACC_XY, NAV_DT);
+        vy_cmd = NAV_Ramp(vy_cmd, vy_ref, NAV_ACC_XY, NAV_DT);
+
+        /* 世界 → 车体 → 四轮 */
+        float c = cosf(pose.yaw), s = sinf(pose.yaw);
+        float bvx =  vx_cmd * c + vy_cmd * s;
+        float bvy = -vx_cmd * s + vy_cmd * c;
+        MecanumResult res = Mecanum_Calc_Full_V(bvx, bvy, w_w);
+        Send_commandmotor(&res);
+
+        if (fabsf(ex) <= SHORT_TOL_XY && fabsf(ey) <= SHORT_TOL_XY &&
+            fabsf(eyaw) <= SHORT_TOL_YAW &&
+            fabsf(vx_cmd) <= SHORT_ARRIVE_V && fabsf(vy_cmd) <= SHORT_ARRIVE_V)
+        {
+            if (++arrive >= SHORT_ARRIVE_TICKS) break;   /* 出口二: 到达 */
+        }
+        else
+        {
+            arrive = 0u;
+        }
+
+        if ((osKernelGetTickCount() - t0) >= SHORT_TIMEOUT_MS) break;   /* 出口三: 超时 */
+
+        osDelay(NAV_LOOP_TICKS);
+    }
+
+    /* 三个出口共用收尾: 零速停车 + 刷新 Self_Dir + 关航向环 */
+    NAV_Stop();
+    if (pose.valid) {
+        Self_Dir.x = pose.x; Self_Dir.y = pose.y; Self_Dir.yaw = pose.yaw;
+    }
+    Angle_Disable();
+    g_nav_running = 0u;
+}
 
 

@@ -182,7 +182,7 @@ static const Jang_type NF_RANK[NF_RANK_COUNT] = {
  * 摆放阶段已改成反查 g_tt.trophy[] (见 ColorIdentif.c 的 SlotByTrophy)。 */
 
 
-static const int16_t NF_PLACE_HEIGHT[4] = { 0, -6, -6, -5 };
+static const int16_t NF_PLACE_HEIGHT[4] = { 0, -10, -9, -5 };
 
 /** 五个槽位里实际放的物块颜色。
  *  ★ NX 接入点: 换成 NX 回传的「收集到的颜色物块」。
@@ -402,7 +402,7 @@ static BlockCollectStage_t cur_stage = COLLECT_TROPHY;
  * "完全进入"进料口为止。距离和时长两道限幅, 蹭不进去也不会一直顶着。
  * ================================================================== */
 #define NF_CREEP_FWD_M       0.3f    /* 前进距离上限 (m) —— 第一道限幅 */
-#define NF_CREEP_VMPS        0.5f    /* 蹭的速度 (m/s)。顶不动就往上提 (0.10) */
+#define NF_CREEP_VMPS        0.4f    /* 蹭的速度 (m/s)。顶不动就往上提 (0.10) */
 #define NF_CREEP_TIMEOUT_MS  2300u    /* 总时长上限 (ms) —— 第二道限幅 */
 #define NF_CREEP_TICK_MS     10u      /* 蹭的控制周期 (ms) */
 
@@ -547,6 +547,7 @@ static void NF_Stage_FindCircle(void)
 
     NX_RequestMode(NX_MODE_CIRCLE);
     NX_ApplyMode();
+    BlockBasic_LiftToAbs(0);
     BlockBasic_TurntableTo(BLOCK_FIRST_SLOT);
     t0 = HAL_GetTick();
     while (g_circle_dir != 'O') {
@@ -626,7 +627,7 @@ static void NF_Stage_PlaceDown(void)
     printf("[FLOW] PlaceDown rank=%d slot=%u done\r\n", (int)rank, (unsigned)tslot);
 
     if (rank == second_place) {
-        BlockBasic_LiftToAbs(51.0f);   /* 亚军: 放完升到 43mm (等价原 UP,20: 23+20) */
+        BlockBasic_LiftToAbs(50.5f);   /* 亚军: 放完升到 43mm (等价原 UP,20: 23+20) */
         // osDelay(250);
     }
 
@@ -673,7 +674,7 @@ static void NF_Stage_GoHome(void)
          * `NAV_HOME_SPEED` 在 NavigationMecanum.h, 只改那一个数就调快慢。
          * Nav_GoToWorld() 三个出口会自动还原成 1.0, 这里**不用**恢复。 */
         g_nav_leg_speed = NAV_HOME_SPEED;
-        (void)Nav_GoToWorld(0.03f, 0.03f ,0.0f);
+        (void)Nav_GoToWorld(0.05f, 0.05f ,0.0f);
     }
 
     AG_Stop();
@@ -717,7 +718,7 @@ void NLF_RunFlow(SystemMode_t mode)
 
         case Event_NavCircleL:
             /* 跑一段定半径圆弧  */
-            Nav_Cricle(Nav_CricleL ,  0.91f, 170*NAV_DEG2RAD );
+            Nav_Cricle(Nav_CricleL ,  0.87f, 170*NAV_DEG2RAD );
             break;
         case Event_NavCircleR:
             Nav_Cricle(Nav_CricleR , 0.93f ,170*NAV_DEG2RAD );
