@@ -5,8 +5,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifndef BYDCAR_G491VET6_NX_UART_H
-#define BYDCAR_G491VET6_NX_UART_H
+#ifndef GONXUNCAR_G491VET6_NX_UART_H
+#define GONXUNCAR_G491VET6_NX_UART_H
 
 /* CubeMX 在 Core/Src/usart.c 生成的 UART4 RX DMA 句柄 (DMA1_Channel5)。
  * 本驱动用它在每次重挂接收后关掉半传输中断，见 NX_StartRx()。
@@ -47,4 +47,4 @@ void NX_ErrorCallback(void);       /* HAL_UART_ErrorCallback 中调用 */
 }
 #endif
 
-#endif //BYDCAR_G491VET6_NX_UART_H
+#endif //GONXUNCAR_G491VET6_NX_UART_H

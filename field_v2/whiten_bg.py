@@ -7,7 +7,7 @@ from PIL import Image
 from scipy import ndimage
 
 SRC = r'C:\Users\35037\.dsh\attachments\v1\objects\8a\8aadadb171d834792a97cd73616c163ac6a0253b999d5eb6446c268976676ee0'
-DST = r'D:\Desktop\git\bydcar_g491vet6\field_v2\背景白色版.png'
+DST = r'D:\Desktop\git\gonxuncar_g491vet6\field_v2\背景白色版.png'
 
 a = np.asarray(Image.open(SRC).convert('RGB')).astype(np.float64)
 bg = np.array([33, 40, 48], float)

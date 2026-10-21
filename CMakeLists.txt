@@ -20,7 +20,7 @@ if(NOT CMAKE_TOOLCHAIN_FILE)
       CACHE FILEPATH "Cross toolchain file" FORCE)
 endif()
 
-project(bydcar_g491vet6 C ASM)
+project(gonxuncar_g491vet6 C ASM)
 
 if(NOT CMAKE_C_COMPILER MATCHES "arm-none-eabi")
   message(FATAL_ERROR

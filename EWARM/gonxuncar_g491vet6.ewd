@@ -2,7 +2,7 @@
 <project>
 	<fileVersion>3</fileVersion>
 	<configuration>
-		<name>bydcar_g491vet6</name>
+		<name>gonxuncar_g491vet6</name>
 		<toolchain>
 			<name>ARM</name>
 		</toolchain>
