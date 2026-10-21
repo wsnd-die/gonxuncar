@@ -1,53 +1,65 @@
 /**
- * @file k230.h
- * @brief K230 视觉模块通信 — USART3 二进制协议
- *        TX: 单字符命令 'f'/'c'/'x'
- *        RX: 0xB3 [aH][aL] 0xFF             — 角度
- *            0xB3 [aH][aL][xH][xL][yH][yL] 0xFF — 角度+位置 (9字节)
- *            0xB4 [dir] 0xFF                 — 方向
- *        PB10=TX, PB11=RX
+ * @file    k230.h
+ * @brief   K230 视觉模块 —— UART4 ASCII 行协议
+ *
+ * TX: detect,<1..6>\n  place,<1..3>\n  stack,<1..3>,<1..6>\n  stop\n
+ * RX: 每行一条消息，'\r' 或 '\n' 结束：
+ *       1..6            颜色号
+ *       target,<1..3>   当前目标位置号
+ *       a/d/w/s,<px>    像素偏差（a/d=图像纵轴，w/s=横轴）
+ *       grab / place / stopped / heartbeat,1 / error,<text>
+ *
+ * 仅接受可打印 ASCII，超长或非法行整行丢弃。
  */
-
 #ifndef K230_H
 #define K230_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "stm32g4xx_hal.h"
 #include <stdint.h>
 #include <stdbool.h>
+#include "stm32g4xx_hal.h"
 
-/* ---- 跨文件共享的 USART3 接收缓冲（在 k230.c 中定义） ---- */
-extern uint8_t rx3;
+#define K230_DATA_TIMEOUT_MS    3000U
 
-/* ---- K230 模式常量 ---- */
-#define K230_MODE_LINEL      'l'   /* 循迹模式 */
-#define K230_MODE_LINER      'r'
-#define K230_MODE_CIRCLE    'c'   /* 绕圈模式 */
-#define K230_MODE_STOP      'x'   /* 停止（匹配 K230 Python） */
+#define K230_EVT_COLOR      0x01U
+#define K230_EVT_TARGET     0x02U
+#define K230_EVT_OFFSET     0x04U
+#define K230_EVT_GRAB       0x08U
+#define K230_EVT_PLACE      0x10U
+#define K230_EVT_STOPPED    0x20U
+#define K230_EVT_ERROR      0x40U
 
-/* ==================== 模式管理 ==================== */
+typedef struct {
+    uint8_t  color_id;
+    uint8_t  target_id;
+    char     dir;              /* 'a' / 'd' / 'w' / 's' */
+    uint16_t offset_px;
+    uint32_t offset_ms;
+
+    /* 两轴分别缓存，避免后一行覆盖前一行。 */
+    char     x_dir;            /* w / s */
+    uint16_t x_px;
+    uint32_t x_ms;
+    char     y_dir;            /* a / d */
+    uint16_t y_px;
+    uint32_t y_ms;
+
+    char     error[20];
+    uint32_t last_ms;
+    uint32_t message_count;
+    uint8_t  online;
+} K230_Status_t;
+
 void K230_Init(void);
-void K230_RequestMode(uint8_t mode);
-void K230_ApplyMode(void);
-void K230_SetMode(uint8_t mode);
+void K230_FeedByte(uint8_t b);          /* UART 中断里调用 */
+void K230_Update(uint32_t now_ms);      /* 任务里周期调用 */
 
-/* ==================== 数据读取 ==================== */
-bool K230_GetLineAngle(float *angle);
-bool K230_GetCircleDir(char *dir);
-bool K230_GetPosition(float *x, float *y);
-bool K230_GetCirclepos(float *cx,float *cy);
-void K230_GetDiag(uint32_t *rx_bytes, uint32_t *rx_ok,
-                  uint32_t *rx_err, uint32_t *rx_unk);
+uint32_t K230_TakeEvents(void);         /* 读取并清除事件位 */
+const K230_Status_t *K230_Status(void);
+void K230_ClearAxes(void);              /* 清两轴偏差，等下一帧 */
 
-/* ==================== ISR 接口 ==================== */
-void K230_RxProcessByte(void);   /* HAL_UART_RxCpltCallback 中调用 */
-void K230_RxRestart(void);       /* HAL_UART_ErrorCallback 中调用 */
+HAL_StatusTypeDef K230_StartDetect(uint8_t color_id);
+HAL_StatusTypeDef K230_StartPlace(uint8_t position_id);
+HAL_StatusTypeDef K230_StartStack(uint8_t position_id, uint8_t anchor_color);
+HAL_StatusTypeDef K230_Stop(void);
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+#endif /* K230_H */

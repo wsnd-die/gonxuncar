@@ -171,13 +171,22 @@ uint8_t Emm_V5_Read_Status(uint8_t id, uint8_t *status, uint32_t timeout_ms)
             uint8_t rx_id = (uint8_t)(can_rx_header.Identifier >> 8);
 
 
+            /* 0x3A 回帧格式（Emm V5）：
+             *   [0x3A][status][0x6B]        —— 参考工程实测
+             *   [0x3A][0x01][status][0x6B]  —— 旧版本曾按这个解析
+             * 两种都接受，避免换固件后又读不到状态。 */
             if (can_rx_header.IdType == FDCAN_EXTENDED_ID &&
                 rx_id == id &&
-                can_rx_data[0] == 0x3A &&
-                can_rx_data[3] == 0x6B)
+                can_rx_data[0] == 0x3A)
             {
-                *status = can_rx_data[2];
-                return 1;
+                if (can_rx_data[2] == 0x6B) {
+                    *status = can_rx_data[1];
+                    return 1;
+                }
+                if (can_rx_data[3] == 0x6B) {
+                    *status = can_rx_data[2];
+                    return 1;
+                }
             }
         }
 

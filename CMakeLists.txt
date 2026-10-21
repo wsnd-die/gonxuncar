@@ -62,9 +62,7 @@ set(FREERTOS_SOURCES
     ${FREERTOS_DIR}/timers.c
     ${FREERTOS_DIR}/CMSIS_RTOS_V2/cmsis_os2.c
     ${FREERTOS_DIR}/portable/MemMang/heap_4.c
-    ${FREERTOS_DIR}/portable/GCC/ARM_CM4F/port.c
-        uart/NX_uart.c
-        uart/NX_uart.h)
+    ${FREERTOS_DIR}/portable/GCC/ARM_CM4F/port.c)
 
 # Application code: CubeMX-generated Core, plus the hand-written layer folders.
 #
@@ -119,14 +117,11 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     device
     debug
     config
-    uart
     # hardware/ 按器件类型细分。这些路径必须逐个列出 —— 源码收集用了
     # GLOB_RECURSE, 但 include 路径没有递归形式。
     hardware/sensors
     hardware/actuators
-    hardware/actuators/scslib
     hardware/display
-    hardware/bus
     Drivers/STM32G4xx_HAL_Driver/Inc
     Drivers/STM32G4xx_HAL_Driver/Inc/Legacy
     Drivers/CMSIS/Device/ST/STM32G4xx/Include

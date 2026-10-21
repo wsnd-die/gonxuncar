@@ -21,9 +21,7 @@
 #include "usart.h"
 
 /* USER CODE BEGIN 0 */
-#include "uart2_tbop10.h"   /* UART2_RxEventCallback + LEGACY_USART2_ODOM_ENABLE */
-#include "msp_color.h"      /* msp_color_RxEventCallback + MSP_Color_Init */
-#include "NX_uart.h"        /* NX_RxEventCallback / NX_RxRestart (UART4) */
+/* UART 接收分发统一在 device/uart_dispatch.c。 */
 /* USER CODE END 0 */
 
 UART_HandleTypeDef huart4;
@@ -419,24 +417,16 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     __HAL_RCC_USART2_CLK_ENABLE();
 
     __HAL_RCC_GPIOA_CLK_ENABLE();
-    __HAL_RCC_GPIOD_CLK_ENABLE();
     /**USART2 GPIO Configuration
+    PA2     ------> USART2_TX   （参考工程引脚）
     PA3     ------> USART2_RX
-    PD5     ------> USART2_TX
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_3;
+    GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Alternate = GPIO_AF7_USART2;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-    GPIO_InitStruct.Pin = GPIO_PIN_5;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Alternate = GPIO_AF7_USART2;
-    HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
     /* USART2 DMA Init */
     /* USART2_RX Init */
@@ -668,47 +658,7 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 
 /* USER CODE BEGIN 1 */
 
-/* ── HAL UART 接收事件的【唯一】分发器 ────────────────────────────────────
- * HAL_UARTEx_RxEventCallback 是 HAL 的 weak 回调，全工程只能有一个定义。
- * 原来这个定义在 hardware/bus/uart2_tbop10.c 里（只管 USART2）；USART3 改用
- * DMA-IDLE 接收后两个驱动都需要它，故把定义收到这里做纯分发，各驱动只导出
- * 普通函数（UART2_RxEventCallback / OPS9_G491_UART3_RxEventCallback）。
- * 依赖方向: Core → device / hardware，不反向。
- *
- * 注意: HAL_UART_RxCpltCallback 不再定义 —— USART2/USART3 都走 DMA-IDLE，
- *      不会再走 RxCplt 路径，保留一个空定义只会挡住别的串口将来用 IT 收。
- * ---------------------------------------------------------------------- */
-void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
-{
-  if (huart->Instance == USART2) {
-#if LEGACY_USART2_ODOM_ENABLE
-    UART2_RxEventCallback(huart, Size);
-#endif
-    msp_color_RxEventCallback(huart, Size);   /* MSP 颜色芯片: 'r' / 'b' */
-  }
-  else if (huart->Instance == USART3) {
-    OPS9_G491_UART3_RxEventCallback(huart, Size);
-  }
-  else if (huart->Instance == UART4) {
-    NX_RxEventCallback(huart, Size);
-  }
-}
-
-void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
-{
-
- // if (huart->Instance == USART2) {
- //    __HAL_UART_CLEAR_FLAG(&huart2, UART_CLEAR_OREF | UART_CLEAR_FEF | UART_CLEAR_NEF);
- //    HAL_UARTEx_ReceiveToIdle_DMA(&huart2, dma_rx_buf, DMA_RX_BUF_SIZE);
- //  }
-  if (huart->Instance == UART4) {
-    NX_ErrorCallback();
-  }
-  if (huart->Instance == USART3) {
-    OPS9_G491_UART3_ErrorCallback(&huart3);
-  }
-}
-
+/* UART 回调统一在 device/uart_dispatch.c 定义，本文件不再提供。 */
 
 /* USER CODE END 1 */
 

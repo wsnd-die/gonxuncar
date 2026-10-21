@@ -33,7 +33,7 @@
 #include <stdio.h>
 
 #include "emm_5v.h"
-#include "angle_ctrl.h"     /* 航向串级控制 + S曲线 (V1.33.0: 步进在 Nav_GoToWorld) */
+#include "hwt_imu.h"
 
 /* USER CODE END Includes */
 
@@ -110,19 +110,10 @@ int main(void)
   MX_USART3_UART_Init();
   MX_I2C3_Init();
   MX_TIM16_Init();
-  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
 
-
-  Angle_Init();
-  /* V1.33.0: 航向环步进已从 TIM7 中断搬进 Nav_GoToWorld() 的循环
-   * (见 algorithm/angle_ctrl.h 的"步进位置"), 这里不再启动 TIM7 ——
-   * 否则 1kHz 的空中断白烧 CPU。
-   * 要回退到中断步进: 放开这行 + 恢复下面 HAL_TIM_PeriodElapsedCallback
-   * 里那句 Angle_Step()。 */
-  /* HAL_TIM_Base_Start_IT(&htim7); */
-
-  fdcan2_UserInit();
+  HWT_IMU_Init();       /* HWT906: 探测在线并把当前航向设为零点 */
+  fdcan2_UserInit();    /* FDCAN2 底盘 + 机械臂 */
 
 
 
